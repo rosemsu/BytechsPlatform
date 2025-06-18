@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "592086117202",
+    "project_id": "bytechs-dd286",
+    "storage_bucket": "bytechs-dd286.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:592086117202:android:695024cbeddbe7d699688b",
+        "android_client_info": {
+          "package_name": "com.bytechssx"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "592086117202-035h59igf4qup72tb53p2rj5cf8r56id.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBu810HLr9grwqGE6cYgXUgergJwdzma-o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "592086117202-035h59igf4qup72tb53p2rj5cf8r56id.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:592086117202:android:549d9a5174b659de99688b",
+        "android_client_info": {
+          "package_name": "com.testmetroapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "592086117202-035h59igf4qup72tb53p2rj5cf8r56id.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBu810HLr9grwqGE6cYgXUgergJwdzma-o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "592086117202-035h59igf4qup72tb53p2rj5cf8r56id.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
