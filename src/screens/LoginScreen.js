@@ -1,10 +1,11 @@
-// Importing required modules and components
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Alert, StyleSheet,
 } from 'react-native';
-import auth from '@react-native-firebase/auth'; // Firebase authentication module
-import Icon from 'react-native-vector-icons/Ionicons'; // Icons for UI
+// Remove direct import of auth
+// import auth from '@react-native-firebase/auth';
+import Icon from 'react-native-vector-icons/Ionicons';
+import authService from '../services/authService';
 
 // Login screen component definition
 const LoginScreen = ({ navigation }) => {
@@ -12,32 +13,31 @@ const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Function to handle login process
   const handleLogin = async () => {
-    // Basic input validation
+    // Basic input validation (can also be done in the service or here)
     if (!email || !password) {
       Alert.alert('Error', 'Please enter both email and password');
       return;
     }
 
+    setIsLoading(true);
     try {
-      // Sign in using Firebase auth
-      const userCredential = await auth().signInWithEmailAndPassword(email, password);
-      const user = userCredential.user;
+      const user = await authService.signIn(email, password);
 
-      // Check if user's email is verified
-      if (!user.emailVerified) {
-        await auth().signOut(); // Sign out unverified users
-        Alert.alert('Email Not Verified', 'Please verify your email first.');
-        return;
+      if (user) {
+        Alert.alert('Success', 'You are now logged in!');
+        navigation.navigate('MainApp'); // Navigate to main app screen
       }
-
-      Alert.alert('Success', 'You are now logged in!');
-      navigation.navigate('MainApp'); // Navigate to main app screen
+      // If user is null, the authService would have shown an alert
+      // or you can handle specific error messages returned from the service here
     } catch (error) {
-      // Display login errors
-      Alert.alert('Login Error', error.message);
+      // If your service re-throws errors, catch them here
+      Alert.alert('Login Error', error.message || 'An unexpected error occurred.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -65,6 +65,7 @@ const LoginScreen = ({ navigation }) => {
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
+        autoCapitalize="none"
       />
 
       {/* Password input field with show/hide toggle */}
@@ -87,14 +88,18 @@ const LoginScreen = ({ navigation }) => {
       </TouchableOpacity>
 
       {/* Login button */}
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Login</Text>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={handleLogin}
+        disabled={isLoading} // Disable button when loading
+      >
+        <Text style={styles.buttonText}>{isLoading ? 'Logging in...' : 'Login'}</Text>
       </TouchableOpacity>
     </View>
   );
 };
 
-// Styles for the login screen components
+// Styles for the login screen components (remains the same)
 const styles = StyleSheet.create({
   container: {
     padding: 24,
