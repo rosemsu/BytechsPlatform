@@ -1,13 +1,11 @@
-// currently working on this page 
-// Importing required modules and components
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator, ScrollView,
-  TouchableOpacity
+  TouchableOpacity, Alert
 } from 'react-native';
 import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
-// import { SafeAreaView } from 'react-native'; ---- SafeAreaView import not being used – can be removed unless needed
+import authService from '../services/authService';
+import firestoreService from '../services/firestoreService';
 
 const HomeScreen = ({ navigation }) => {
   const [fullName, setFullName] = useState(''); // Logged-in user's name
@@ -16,58 +14,63 @@ const HomeScreen = ({ navigation }) => {
   const [events, setEvents] = useState([]); // Upcoming events
   const [interestsMap, setInterestsMap] = useState({}); // Map interest ID to name
 
-  useEffect(() => {
-    const fetchUserData = async () => {
-      const currentUser = auth().currentUser;
-      if (!currentUser) return;
-
-      // Get user name from Users collection
-      const userDoc = await firestore().collection('Users').doc(currentUser.uid).get();
-      if (userDoc.exists) {
-        setFullName(userDoc.data()?.FullName || 'User');
+  // useCallback to memoize fetchUserData unless dependencies change
+  const fetchUserData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const currentUser = auth().currentUser; // Or get from a shared auth context/service
+      if (!currentUser) {
+        Alert.alert("Error", "No user logged in.");
+        setLoading(false);
+        // navigation.replace('Login'); // Optionally redirect to login
+        return;
       }
 
-      // Build map of { interestId: interestName }
-      const interestsSnapshot = await firestore().collection('interests').get();
-      const map = {};
-      interestsSnapshot.forEach(doc => map[doc.id] = doc.data().name);
-      setInterestsMap(map);
+      // Parallel fetching for better performance
+      const [
+        fetchedFullName,
+        fetchedInterestsMap,
+        fetchedEvents,
+        fetchedDiscussions,
+      ] = await Promise.all([
+        firestoreService.getUserFullName(currentUser.uid),
+        firestoreService.getInterests(),
+        firestoreService.getUpcomingEvents(2),
+        firestoreService.getLatestDiscussions(3),
+      ]);
 
-      // Create a JS Date for midnight today (used for filtering future events)
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      setFullName(fetchedFullName || 'User');
+      setInterestsMap(fetchedInterestsMap || {});
+      setEvents(fetchedEvents || []);
+      setDiscussions(fetchedDiscussions || []);
 
-      // Fetch up to 2 upcoming events (sorted soonest first)
-      const eventsSnap = await firestore()
-        .collection('Events')
-        .where('EventTimeAndDate', '>=', today)
-        .orderBy('EventTimeAndDate', 'asc')
-        .limit(2)
-        .get();
-
-      const eventsData = eventsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setEvents(eventsData);
-
-      // Fetch latest 3 discussions
-      const discussionsSnap = await firestore()
-        .collection('discussions')
-        .limit(3)
-        .get();
-
-      const discussionsData = discussionsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setDiscussions(discussionsData);
-
+    } catch (error) {
+      console.error("Failed to fetch home screen data:", error);
+      Alert.alert("Error", "Could not load data. Please try again later.");
+      // Set states to defaults or empty to prevent rendering issues
+      setFullName('User');
+      setInterestsMap({});
+      setEvents([]);
+      setDiscussions([]);
+    } finally {
       setLoading(false); // Finished fetching all data
-    };
+    }
+  }, []); // No dependencies if currentUser is fetched inside or stable
 
+  useEffect(() => {
+    // Initial fetch
     fetchUserData();
-  }, []);
+
+    // Optional: Add a listener for screen focus if you want to refresh data when returning to the screen
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+        // console.log('HomeScreen focused, consider re-fetching data if needed');
+        // fetchUserData(); // Uncomment if you want to refresh on focus
+    });
+
+    return () => {
+      unsubscribeFocus();
+    };
+  }, [navigation, fetchUserData]); // fetchUserData is now stable due to useCallback
 
   // Show loading screen while data is being fetched
   if (loading) {
@@ -78,15 +81,16 @@ const HomeScreen = ({ navigation }) => {
     );
   }
 
-// to sign out
+  // Use authService for sign out
   const handleSignOut = async () => {
-  try {
-    await auth().signOut();
-    navigation.replace('Login'); // replace to prevent going back with back button
-  } catch (error) {
-    console.error('Sign out error:', error);
-  }
-};
+    try {
+      await authService.signOut(); // Use the service
+      navigation.replace('Login'); // replace to prevent going back with back button
+    } catch (error) {
+      console.error('Sign out error:', error);
+      Alert.alert('Error', 'Failed to sign out.');
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -96,17 +100,19 @@ const HomeScreen = ({ navigation }) => {
         <Text style={styles.subtitle}>Welcome Back!</Text>
       </View>
 
-        {/* Sign out button */}
-            <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-            <Text style={styles.signOutText}>Sign Out</Text>
-            </TouchableOpacity>
-
+      {/* Sign out button */}
+      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+        <Text style={styles.signOutText}>Sign Out</Text>
+      </TouchableOpacity>
 
       {/* Featured Section (Static for now) */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>How to Become Designer</Text>
         <Text style={styles.sectionSub}>UI/UX Specialized</Text>
-        <TouchableOpacity style={styles.button}>
+        <TouchableOpacity
+            style={styles.button}
+            onPress={() => Alert.alert("Navigate", "Navigate to relevant discussion")} // Placeholder
+        >
           <Text style={styles.buttonText}>Join Discussion</Text>
         </TouchableOpacity>
       </View>
@@ -120,8 +126,7 @@ const HomeScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* List of events */}
-        {events.map(event => (
+        {events.length > 0 ? events.map(event => (
           <View key={event.id} style={styles.card}>
             <Text style={styles.eventName}>{event.EventName}</Text>
             <Text style={styles.eventDate}>
@@ -129,10 +134,6 @@ const HomeScreen = ({ navigation }) => {
             </Text>
             <Text style={styles.eventLocation}>{event.EventLocation}</Text>
             <Text style={styles.eventCity}>{event.EventCity}</Text>
-
-
-
-            {/* Tags from interest IDs */}
             <View style={styles.interestsRow}>
               {event.interests?.map(id => (
                 <View key={id} style={styles.interestTag}>
@@ -143,25 +144,33 @@ const HomeScreen = ({ navigation }) => {
               ))}
             </View>
           </View>
-        ))}
+        )) : <Text style={styles.noDataText}>No upcoming events.</Text>}
       </View>
 
       {/* Newest Discussions Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Newest Discussions</Text>
-        {discussions.map(d => (
-          <View key={d.id} style={styles.card}>
+        <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Newest Discussions</Text>
+            {/* Optionally add a "See All" for discussions */}
+            {/* <TouchableOpacity onPress={() => navigation.navigate('DiscussionsScreen')}>
+                <Text style={styles.seeAllText}>See All</Text>
+            </TouchableOpacity> */}
+        </View>
+        {discussions.length > 0 ? discussions.map(d => (
+          // Make discussion cards pressable to navigate to the discussion details
+          <TouchableOpacity key={d.id} style={styles.card} onPress={() => navigation.navigate('DiscussionDetail', { discussionId: d.id })}>
             <Text style={styles.eventTitle}>{d.title}</Text>
-            <Text style={styles.eventLocation}>{d.description}</Text>
-          </View>
-        ))}
+            <Text style={styles.eventLocation} numberOfLines={2}>{d.description}</Text>
+          </TouchableOpacity>
+        )) : <Text style={styles.noDataText}>No new discussions.</Text>}
       </View>
     </ScrollView>
   );
 };
 
-// Styles for layout and UI
+// Styles for layout and UI (Add noDataText style)
 const styles = StyleSheet.create({
+  // ... (Your existing styles)
   container: {
     backgroundColor: '#f6f6ff',
     padding: 20,
@@ -198,7 +207,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
+    // marginBottom: 8, // Removed as sectionHeader has marginBottom
   },
   sectionSub: {
     fontSize: 14,
@@ -210,7 +219,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 12, // Ensure this doesn't conflict if it's the last item in a section
   },
   buttonText: {
     color: '#fff',
@@ -237,12 +246,13 @@ const styles = StyleSheet.create({
     color: '#5c4dd2',
     fontWeight: 'bold',
   },
-  eventTitle: {
+  eventTitle: { // Used for discussion titles as well
     fontSize: 16,
     fontWeight: '600',
-    marginTop: 4,
+    color: '#333', // Make it consistent
+    marginBottom: 4, // Added margin
   },
-  eventLocation: {
+  eventLocation: { // Used for discussion descriptions as well
     fontSize: 14,
     color: '#777',
   },
@@ -274,18 +284,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   signOutButton: {
-  alignSelf: 'flex-end',
-  backgroundColor: '#f44336',
-  paddingVertical: 8,
-  paddingHorizontal: 14,
-  borderRadius: 6,
-  marginBottom: 10,
-},
-signOutText: {
-  color: '#fff',
-  fontWeight: '600',
-},
-
+    alignSelf: 'flex-end',
+    backgroundColor: '#f44336', // A common color for sign out/danger
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    marginBottom: 10, // Adjust as needed
+  },
+  signOutText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  noDataText: { // New Style
+    textAlign: 'center',
+    color: '#777',
+    marginTop: 10,
+    marginBottom: 10,
+  }
 });
 
 // Export component
