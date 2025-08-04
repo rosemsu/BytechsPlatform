@@ -156,6 +156,96 @@ const getEventDetails = async (eventId) => {
   }
 };
 
+export const doesUserHaveTicketForEvent = async (userId, eventId) => {
+   if (!userId || !eventId) throw new Error("User ID and Event ID are required.");
+   try {
+     const ticketQuery = await firestore()
+     .collection('tickets') // <--- Use 'tickets'
+     .where('userId', '==', userId)
+     .where('eventId', '==', eventId)
+     .limit(1)
+     .get();
+     return !ticketQuery.empty; // True if a ticket document exists
+   } catch (error) {
+      console.error("Error checking for existing ticket:", error);
+      throw error;
+   }
+};
+
+export const acquireTicketForEvent = async (eventId, ticketDetails = {}) => { // ticketDetails for future expansion
+   const currentUser = auth().currentUser;
+   if (!currentUser) throw new Error("User must be logged in to acquire a ticket.");
+
+   const alreadyHasTicket = await doesUserHaveTicketForEvent(currentUser.uid, eventId);
+   if (alreadyHasTicket) {
+     throw new Error("You already have a ticket for this event.");
+   }
+
+   try {
+     const ticketRef = firestore().collection('tickets').doc(); // <--- Use 'tickets', Auto ID
+     const ticketData = {
+        eventId,
+        userId: currentUser.uid,
+        acquiredAt: firestore.FieldValue.serverTimestamp(), // Or your preferred timestamp field name
+        ...ticketDetails, // For any other ticket-specific info like type, price (if $0)
+     };
+     await ticketRef.set(ticketData);
+     console.log("Ticket acquired for event:", eventId, "Ticket ID:", ticketRef.id);
+
+     // Optionally, update the event with registered/ticket count
+     await updateEventTicketCount(eventId, true);
+
+     return { id: ticketRef.id, ...ticketData };
+   } catch (error) {
+      console.error("Error acquiring ticket:", error);
+      throw error;
+   }
+};
+
+
+const updateEventTicketCount = async (eventId, increment = true) => {
+   const eventRef = firestore().collection('events').doc(eventId);
+   const fieldToUpdate = 'ticketHoldersCount'; // Or whatever you call it in your event docs
+
+   try {
+       await eventRef.update({
+        [fieldToUpdate]: firestore.FieldValue.increment(increment ? 1 : -1)
+       });
+   } catch (error) {
+     // If the field doesn't exist, set it to 1 (or 0 if decrementing from non-existent)
+       if (error.code === 'firestore/not-found' || error.message.includes("No document to update")) {
+         await eventRef.set({ [fieldToUpdate]: increment ? 1 : 0 }, { merge: true });
+       } else if (error.message.includes("బుల్ కాదు")) { // Check for "value at 'field' is not a number"
+         await eventRef.set({ [fieldToUpdate]: increment ? 1 : 0 }, { merge: true });
+       }
+       else {
+         console.error("Error updating event ticket count:", error);
+       }
+   }
+};
+
+
+export const getTicketConfirmationDetails = async (ticketId) => {
+  if (!ticketId) throw new Error("Ticket ID is required.");
+  try {
+    const ticketDoc = await firestore().collection('tickets').doc(ticketId).get(); // <--- Use 'tickets'
+    if (!ticketDoc.exists) {
+       console.log('No such ticket!');
+       return null;
+    }
+
+    const ticketData = { id: ticketDoc.id, ...ticketDoc.data() };
+    const eventDetails = await getEventDetails(ticketData.eventId); // Assumes getEventDetails is already defined
+
+    return {
+      ticket: ticketData,
+      event: eventDetails,
+    };
+  } catch (error) {
+     console.error("Error fetching ticket confirmation details:", error);
+     throw error;
+  }
+};
 
 export default {
   getUserFullName,
