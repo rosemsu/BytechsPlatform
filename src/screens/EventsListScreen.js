@@ -50,10 +50,10 @@ const EventsListScreen = () => {
       style={styles.eventItem}
       onPress={() => navigation.navigate('EventDetail', { eventId: item.id })}
     >
-      <Text style={styles.eventTitle}>{item.title}</Text>
-      {item.eventStartTimestamp && (
+      <Text style={styles.eventTitle}>{item.EventName}</Text>
+      {item.EventTimeAndDate && (
         <Text style={styles.eventDate}>
-          {new Date(item.eventStartTimestamp.seconds * 1000).toLocaleString()}
+          {new Date(item.EventTimeAndDate.seconds * 1000).toLocaleString()}
         </Text>
       )}
     </TouchableOpacity>
@@ -67,7 +67,6 @@ const EventsListScreen = () => {
     <View style={styles.container}>
       <View style={styles.headerContainer}>
         <Text style={styles.headerTitle}>Upcoming Events</Text>
-        <Button title="Create Event" onPress={() => navigation.navigate('CreateEvent')} />
       </View>
       {error && <Text style={styles.errorText}>Error: {error}</Text>}
       {!loading && events.length === 0 && !error && (

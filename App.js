@@ -11,8 +11,9 @@ import Verification from './src/screens/Verification';
 import ResetPassword from './src/screens/ResetPassword';
 import BottomTabNavigator from './src/screens/BottomTabNavigator';
 import EventsScreen from './src/screens/EventsScreen';
-//import HomeScreen from './screens/HomeScreen'; is not being used as the home page is loaded via the bottom tab navigator
-
+import EventsListScreen from './src/screens/EventsListScreen';
+import EventDetailScreen from './src/screens/EventDetailScreen';
+import TicketConfirmationScreen from './src/screens/TicketConfirmationScreen';
 
 
 
@@ -37,7 +38,9 @@ const App = () => {
         <Stack.Screen name="Verification" component={Verification} />
         <Stack.Screen name="ResetPassword" component={ResetPassword} />
         <Stack.Screen name="MainApp" component= {BottomTabNavigator} />
-        <Stack.Screen name="EventsScreen" component={EventsScreen} />
+        <Stack.Screen name="EventsListScreen" component={EventsListScreen} />
+        <Stack.Screen name="EventDetail" component={EventDetailScreen} />
+        <Stack.Screen name="TicketConfirmation" component={TicketConfirmationScreen} options={{ title: 'Your Ticket'}}/>
 
       </Stack.Navigator>
     </NavigationContainer>

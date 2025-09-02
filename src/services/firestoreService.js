@@ -1,4 +1,5 @@
 import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth'; // <-- ADD THIS LINE
 
 // Function to fetch the user's full name
 const getUserFullName = async (userId) => {
@@ -29,29 +30,29 @@ const getInterests = async () => {
     throw error; // Or return an empty object
   }
 };
-
-// Function to fetch upcoming events
-const getUpcomingEvents = async (limitCount = 2) => {
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const eventsSnap = await firestore()
-      .collection('Events')
-      .where('EventTimeAndDate', '>=', today)
-      .orderBy('EventTimeAndDate', 'asc')
-      .limit(limitCount)
-      .get();
-
-    return eventsSnap.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-  } catch (error) {
-    console.error("Error fetching upcoming events:", error);
-    throw error; // Or return an empty array
-  }
-};
+//
+//// Function to fetch upcoming events
+//const getUpcomingEvents = async (limitCount = 2) => {
+//  try {
+//    const today = new Date();
+//    today.setHours(0, 0, 0, 0);
+//
+//    const eventsSnap = await firestore()
+//      .collection('Events')
+//      .where('EventTimeAndDate', '>=', today)
+//      .orderBy('EventTimeAndDate', 'asc')
+//      .limit(limitCount)
+//      .get();
+//
+//    return eventsSnap.docs.map(doc => ({
+//      id: doc.id,
+//      ...doc.data(),
+//    }));
+//  } catch (error) {
+//    console.error("Error fetching upcoming events:", error);
+//    throw error; // Or return an empty array
+//  }
+//};
 
 // Function to fetch latest discussions
 const getLatestDiscussions = async (limitCount = 3) => {
@@ -107,7 +108,7 @@ const createEvent = async (eventData) => {
     }
 
     try {
-        const newEventRef = firestore().collection('events').doc(); // Auto-generate ID
+        const newEventRef = firestore().collection('Events').doc(); // Auto-generate ID
         const timestampedEventData = {
             ...eventData,
             creatorId: currentUser.uid,
@@ -124,35 +125,54 @@ const createEvent = async (eventData) => {
     }
 };
 
-const getUpcomingEvents = async (limitCount = 10) => {
+export const getUpcomingEvents = async (limitCount = 10) => {
   try {
     const now = firestore.Timestamp.now(); // Or Timestamp.fromDate(new Date())
     const eventsSnapshot = await firestore()
-    .collection('events')
-    .where('EventTimeAndDate', '>=', now) // Assuming you have 'eventStartTimestamp'
-    .orderBy('EventTimeAndDate', 'asc')
-    .limit(limitCount)
-    .get();
+      .collection('Events') // Make sure this is your actual collection name
+      .where('EventTimeAndDate', '>=', now) // Ensure 'EventTimeAndDate' is the correct field name in Firestore
+      .orderBy('EventTimeAndDate', 'asc')   // Ensure 'EventTimeAndDate' is the correct field name in Firestore
+      .limit(limitCount)
+      .get();
 
-    return eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Corrected console.log statements:
+    console.log("Raw query snapshot size:", eventsSnapshot.size); // Use eventsSnapshot
+    eventsSnapshot.docs.forEach(doc => {                         // Use eventsSnapshot
+      console.log("Raw doc data:", doc.id, "=>", doc.data());
+    });
+
+    const events = eventsSnapshot.docs.map(doc => ({
+      id: doc.id, ...doc.data(),
+      // Ensure your UI expects 'title' and 'eventStartTimestamp' or adjust here/UI
+      // If your Firestore uses 'EventName' and 'EventTimeAndDate', map them:
+      // title: doc.data().EventName,
+      // eventStartTimestamp: doc.data().EventTimeAndDate,
+    }));
+
+    console.log("Mapped events to be returned:", events); // Log 'events' after it's defined
+
+    return events; // Return the mapped events
   } catch (error) {
-    console.error("Error fetching upcoming events:", error);
+    console.error("Error fetching upcoming events:", error.message, error.stack); // Log more error details
     throw error;
-    }
+  }
 };
 
 const getEventDetails = async (eventId) => {
-  if (!eventId) throw new Error("Event ID is required.");
+  if (!eventId) {
+      console.error("Event ID is required.");
+      throw new Error("Event ID is required.");
+  }
   try {
-    const eventDoc = await firestore().collection('events').doc(eventId).get();
+    const eventDoc = await firestore().collection('Events').doc(eventId).get();
     if (!eventDoc.exists) {
       console.log('No such event!');
       return null;
     }
     return { id: eventDoc.id, ...eventDoc.data() };
   } catch (error) {
-    console.error("Error fetching event details:", error);
-    throw error;
+    console.error("Error fetching event details:", eventId, error);
+    throw new Error("Couldn't fetch event details.")
   }
 };
 
@@ -204,7 +224,7 @@ export const acquireTicketForEvent = async (eventId, ticketDetails = {}) => { //
 
 
 const updateEventTicketCount = async (eventId, increment = true) => {
-   const eventRef = firestore().collection('events').doc(eventId);
+   const eventRef = firestore().collection('Events').doc(eventId);
    const fieldToUpdate = 'ticketHoldersCount'; // Or whatever you call it in your event docs
 
    try {
@@ -247,6 +267,43 @@ export const getTicketConfirmationDetails = async (ticketId) => {
   }
 };
 
+export const getTicketAndEventDetails = async (ticketId) => {
+  if (!ticketId) {
+    throw new Error("Ticket ID is required.");
+  }
+
+  try {
+    // 1. Get the ticket document
+    const ticketDoc = await firestore().collection('tickets').doc(ticketId).get();
+    if (!ticketDoc.exists) {
+      throw new Error("Ticket not found.");
+    }
+    const ticketData = { id: ticketDoc.id, ...ticketDoc.data() };
+
+    // 2. Get the eventId from the ticket data
+    const eventId = ticketData.eventId;
+    if (!eventId) {
+      throw new Error("Event ID not found on the ticket.");
+    }
+
+    // 3. Get the corresponding event document
+    const eventDoc = await firestore().collection('Events').doc(eventId).get();
+    if (!eventDoc.exists) {
+      throw new Error("Associated event not found.");
+    }
+    const eventData = { id: eventDoc.id, ...eventDoc.data() };
+
+    // 4. Return both the ticket and the event data
+    return {
+      ticket: ticketData,
+      event: eventData,
+    };
+
+  } catch (error) {
+    console.error("Error fetching ticket and event details:", error);
+    throw error; // Re-throw to be handled by the screen
+  }
+};
 export default {
   getUserFullName,
   getInterests,
@@ -255,4 +312,9 @@ export default {
   upsertUserProfile,
   createEvent,
   getUpcomingEvents,
+  getEventDetails,
+  doesUserHaveTicketForEvent,
+  acquireTicketForEvent,
+  updateEventTicketCount,
+  getTicketConfirmationDetails,
 };

@@ -121,7 +121,7 @@ const HomeScreen = ({ navigation }) => {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Upcoming Events</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('EventsScreen')}>
+          <TouchableOpacity onPress={() => navigation.navigate('EventsListScreen')}>
             <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
         </View>
